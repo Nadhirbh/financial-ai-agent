@@ -1,0 +1,3 @@
+# Placeholder compose for Airflow (to be configured with official images)
+version: "3"
+services: {}

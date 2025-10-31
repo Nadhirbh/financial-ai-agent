@@ -1,0 +1,25 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from .api.v1.chatbot import router as chatbot_router
+from .api.v1.health import router as health_router
+from .api.v1.analytics import router as analytics_router
+from .api.v1.ingest import router as ingest_router
+
+app = FastAPI(title="Financial AI Agent API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(health_router, prefix="/api/v1")
+app.include_router(chatbot_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(ingest_router, prefix="/api/v1")
+
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "financial-ai-agent"}
