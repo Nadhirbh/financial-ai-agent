@@ -7,6 +7,7 @@ from ...services.etl.sources.local_file import load_local_documents
 from ...services.etl.sources.newsapi import fetch_newsapi
 from ...services.etl.sources.gdelt import fetch_gdelt
 from ...services.etl.sources.scraper import scrape_url
+from ...services.etl.sources.twitter import fetch_tweets
 from ...services.etl.preprocess import preprocess_items
 from ...services.etl.loader import load_documents
 
@@ -39,6 +40,34 @@ def run_ingest(payload: IngestRequest | None = None):
         "sources": sources,
         "keywords": keywords,
         "fetched": len(raw_items),
+        "cleaned": len(cleaned),
+        "inserted": inserted,
+    }
+
+
+class TweetsIngestRequest(BaseModel):
+    query: str  # e.g., "(EURUSD OR EUR) (ECB OR inflation)"
+    limit: Optional[int] = 50
+    since: Optional[str] = None  # YYYY-MM-DD
+    until: Optional[str] = None  # YYYY-MM-DD
+    language: Optional[str] = "en"
+    keywords: Optional[List[str]] = None
+
+
+@router.post("/tweets")
+def ingest_tweets(payload: TweetsIngestRequest):
+    raw = fetch_tweets(
+        query=payload.query,
+        limit=payload.limit or 50,
+        since=payload.since,
+        until=payload.until,
+        lang=payload.language or "en",
+    )
+    cleaned = preprocess_items(raw, keywords=payload.keywords or [])
+    inserted = load_documents(cleaned)
+    return {
+        "query": payload.query,
+        "fetched": len(raw),
         "cleaned": len(cleaned),
         "inserted": inserted,
     }
