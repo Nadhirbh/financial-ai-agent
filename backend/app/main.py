@@ -4,6 +4,8 @@ from .api.v1.chatbot import router as chatbot_router
 from .api.v1.health import router as health_router
 from .api.v1.analytics import router as analytics_router
 from .api.v1.ingest import router as ingest_router
+from .db.models import Base
+from .db.session import engine
 
 app = FastAPI(title="Financial AI Agent API")
 
@@ -23,3 +25,9 @@ app.include_router(ingest_router, prefix="/api/v1")
 @app.get("/")
 def root():
     return {"status": "ok", "service": "financial-ai-agent"}
+
+
+@app.on_event("startup")
+def on_startup():
+    # Ensure DB tables exist (dev convenience)
+    Base.metadata.create_all(bind=engine)
