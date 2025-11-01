@@ -5,6 +5,7 @@ from .api.v1.health import router as health_router
 from .api.v1.analytics import router as analytics_router
 from .api.v1.ingest import router as ingest_router
 from .api.v1.nlp import router as nlp_router
+from .api.v1.insights import router as insights_router
 from .db.models import Base
 from .db.session import engine
 
@@ -23,6 +24,7 @@ app.include_router(chatbot_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(ingest_router, prefix="/api/v1")
 app.include_router(nlp_router, prefix="/api/v1")
+app.include_router(insights_router, prefix="/api/v1")
 
 @app.get("/")
 def root():
