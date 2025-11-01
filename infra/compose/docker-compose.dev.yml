@@ -24,6 +24,7 @@ services:
       - DATABASE_URL=postgresql+psycopg://app:app@db:5432/appdb
     volumes:
       - ../../backend:/app
+      - ../../data:/app/data:ro
     depends_on:
       - db
 

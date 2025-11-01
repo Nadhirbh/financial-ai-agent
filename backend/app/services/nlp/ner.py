@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Set
 import re
+import os
 
 
 TICKER_RE = re.compile(r"\b[A-Z]{2,5}\b")
@@ -18,7 +19,26 @@ INDEX_KEYWORDS = {
 }
 
 
-def extract_entities(text: str) -> Dict[str, List[str]]:
+_hf_ner = None  # lazy
+
+
+def _get_hf_ner():
+    global _hf_ner
+    if _hf_ner is not None:
+        return _hf_ner
+    model_name = os.getenv("FIN_NER_MODEL", "")  # e.g., "dslim/bert-base-NER" or finance-specific
+    if not model_name:
+        return None
+    try:
+        from transformers import pipeline  # type: ignore
+
+        _hf_ner = pipeline("ner", model=model_name, tokenizer=model_name, aggregation_strategy="simple")
+        return _hf_ner
+    except Exception:
+        return None
+
+
+def _extract_entities_heuristic(text: str) -> Dict[str, List[str]]:
     if not text:
         return {"tickers": [], "orgs": [], "indices": [], "products": []}
 
@@ -53,3 +73,40 @@ def extract_entities(text: str) -> Dict[str, List[str]]:
         "indices": sorted(indices),
         "products": sorted(products),
     }
+
+
+def _extract_entities_hf(text: str) -> Dict[str, List[str]] | None:
+    clf = _get_hf_ner()
+    if clf is None:
+        return None
+    try:
+        ents = clf(text)  # list of aggregated entities
+        orgs: Set[str] = set()
+        tickers: Set[str] = set()
+        # Map labels to our buckets simply
+        for e in ents:
+            label = (e.get("entity_group") or e.get("entity") or "").upper()
+            word = e.get("word") or e.get("text") or ""
+            if not word:
+                continue
+            if label in {"ORG", "COMPANY"}:
+                orgs.add(word)
+            elif label in {"TICKER", "SYM", "MISC"} and TICKER_RE.fullmatch(word):
+                tickers.add(word)
+        return {
+            "tickers": sorted(tickers),
+            "orgs": sorted(orgs),
+            "indices": [],
+            "products": [],
+        }
+    except Exception:
+        return None
+
+
+def extract_entities(text: str) -> Dict[str, List[str]]:
+    # Prefer HF model if configured and available
+    if text:
+        hf = _extract_entities_hf(text)
+        if hf is not None:
+            return hf
+    return _extract_entities_heuristic(text)

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from ...services.nlp.pipeline import run_nlp_pipeline
 from ...db.session import SessionLocal
 from ...db.models.nlp_annotation import NLPAnnotation
+from ...db.models.document import Document
 
 router = APIRouter(prefix="/nlp")
 
@@ -15,11 +16,15 @@ router = APIRouter(prefix="/nlp")
 class RunNLPRequest(BaseModel):
     limit: int = 100
     document_ids: Optional[List[int]] = None
+    async_run: bool = False
 
 
 @router.post("/run")
-def run_nlp(payload: RunNLPRequest | None = None):
+def run_nlp(payload: RunNLPRequest | None = None, background_tasks: BackgroundTasks | None = None):
     payload = payload or RunNLPRequest()
+    if payload.async_run and background_tasks is not None:
+        background_tasks.add_task(run_nlp_pipeline, limit=payload.limit, document_ids=payload.document_ids)
+        return {"status": "scheduled", "limit": payload.limit, "document_ids": payload.document_ids or []}
     res = run_nlp_pipeline(limit=payload.limit, document_ids=payload.document_ids)
     return res
 
@@ -39,5 +44,16 @@ def get_annotation(doc_id: int):
             "sentiment": row.sentiment,
             "events": row.events,
         }
+    finally:
+        db.close()
+
+
+@router.get("/pending")
+def list_pending(limit: int = 100):
+    db = SessionLocal()
+    try:
+        annotated_ids = {aid for (aid,) in db.query(NLPAnnotation.document_id).all()}
+        ids = [d.id for d in db.query(Document.id).all() if d.id not in annotated_ids][: limit]
+        return {"count": len(ids), "document_ids": ids}
     finally:
         db.close()
