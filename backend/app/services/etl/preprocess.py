@@ -2,14 +2,44 @@
 
 from typing import List, Dict, Set
 import unicodedata
+import re
 
 
 def normalize_utf8(text: str) -> str:
     if text is None:
         return ""
-    # NFC normalization and strip control chars
+    # NFC normalization
     t = unicodedata.normalize("NFC", text)
-    return "".join(ch for ch in t if ch >= " " or ch == "\n").strip()
+
+    # Known zero-width and BOM chars to convert to a space (per tests expectation)
+    ZERO_WIDTH = {"\u200b", "\u200c", "\u200d", "\ufeff"}
+
+    out_chars: List[str] = []
+    for ch in t:
+        # Convert zero-width characters to a normal space
+        if ch in ZERO_WIDTH:
+            out_chars.append(" ")
+            continue
+        cat = unicodedata.category(ch)
+        # Preserve newline explicitly
+        if ch == "\n":
+            out_chars.append(ch)
+            continue
+        # Convert any unicode space separators or NBSP to regular space
+        if cat == "Zs" or ch in ("\u00A0", "\u2007", "\u202F"):
+            out_chars.append(" ")
+            continue
+        # Drop other control/format characters (categories starting with 'C')
+        if cat.startswith("C"):
+            continue
+        out_chars.append(ch)
+
+    s = "".join(out_chars)
+    # Collapse multiple spaces but preserve newlines
+    s = re.sub(r"[ \t\x0b\x0c\r]+", " ", s)
+    # Trim spaces around lines
+    s = "\n".join(part.strip() for part in s.splitlines()).strip()
+    return s
 
 
 def simple_topic_filter(item: Dict, keywords: List[str]) -> bool:

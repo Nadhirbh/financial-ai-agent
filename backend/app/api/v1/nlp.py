@@ -20,7 +20,7 @@ class RunNLPRequest(BaseModel):
 
 
 @router.post("/run")
-def run_nlp(payload: RunNLPRequest | None = None, background_tasks: BackgroundTasks | None = None):
+def run_nlp(payload: RunNLPRequest | None = None, background_tasks: BackgroundTasks = None):
     payload = payload or RunNLPRequest()
     if payload.async_run and background_tasks is not None:
         background_tasks.add_task(run_nlp_pipeline, limit=payload.limit, document_ids=payload.document_ids)

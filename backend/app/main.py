@@ -6,8 +6,12 @@ from .api.v1.analytics import router as analytics_router
 from .api.v1.ingest import router as ingest_router
 from .api.v1.nlp import router as nlp_router
 from .api.v1.insights import router as insights_router
+from .api.v1.rag import router as rag_router
+from .api.v1.mcp import router as mcp_router
 from .db.models import Base
 from .db.session import engine
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from fastapi import Response
 
 app = FastAPI(title="Financial AI Agent API")
 
@@ -25,6 +29,8 @@ app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(ingest_router, prefix="/api/v1")
 app.include_router(nlp_router, prefix="/api/v1")
 app.include_router(insights_router, prefix="/api/v1")
+app.include_router(rag_router, prefix="/api/v1")
+app.include_router(mcp_router, prefix="/api/v1")
 
 @app.get("/")
 def root():
@@ -35,3 +41,9 @@ def root():
 def on_startup():
     # Ensure DB tables exist (dev convenience)
     Base.metadata.create_all(bind=engine)
+
+
+@app.get("/metrics")
+def metrics():
+    data = generate_latest()
+    return Response(content=data, media_type=CONTENT_TYPE_LATEST)

@@ -11,6 +11,11 @@ from ...db.models.document import Document
 from ...db.models.nlp_annotation import NLPAnnotation
 from ...db.models.insights import DailySummary, Alert
 from ...services.insights.llm_client import LLMClient
+import time
+try:
+    import mlflow  # type: ignore
+except Exception:  # pragma: no cover
+    mlflow = None  # type: ignore
 
 router = APIRouter(prefix="/insights")
 
@@ -66,7 +71,7 @@ def _persist_summary(db, day: date, scope: str, scope_key: Optional[str], text: 
 
 
 @router.post("/summarize")
-def summarize(payload: SummarizeRequest, background_tasks: BackgroundTasks | None = None):
+def summarize(payload: SummarizeRequest, background_tasks: BackgroundTasks = None):
     start = payload.start or date.today()
     end = payload.end or start
     client = LLMClient.from_env()
@@ -76,6 +81,8 @@ def summarize(payload: SummarizeRequest, background_tasks: BackgroundTasks | Non
     def _job():
         db = SessionLocal()
         try:
+            t0 = time.time()
+            total_docs = 0
             scopes: List[Dict] = []
             if payload.scope == "global":
                 scopes.append({"scope": "global", "key": None, "tickers": None})
@@ -88,10 +95,22 @@ def summarize(payload: SummarizeRequest, background_tasks: BackgroundTasks | Non
                 items = _gather_items(db, start, end, tickers=s["tickers"])[:100]
                 if not items:
                     continue
+                total_docs += len(items)
                 messages = _build_messages(s["scope"], s["key"], items)
                 text = client.summarize(messages, max_tokens=payload.max_tokens) or ""
                 sources = [it["url"] for it in items[:20] if it.get("url")]
                 _persist_summary(db, start, s["scope"], s["key"], text, sources, client.model)
+            dur = time.time() - t0
+            if mlflow:
+                try:
+                    mlflow.set_experiment("insights")
+                    with mlflow.start_run(run_name=f"summarize_{start}"):
+                        mlflow.log_param("model", client.model)
+                        mlflow.log_param("scope", payload.scope)
+                        mlflow.log_metric("docs_used", total_docs)
+                        mlflow.log_metric("duration_sec", dur)
+                except Exception:
+                    pass
         finally:
             db.close()
 

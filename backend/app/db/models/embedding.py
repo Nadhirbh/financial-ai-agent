@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, String
-from sqlalchemy.dialects.sqlite import BLOB
+from sqlalchemy import Column, Integer, ForeignKey, String, Text, LargeBinary
 from . import Base
 
 class Embedding(Base):
@@ -7,4 +6,5 @@ class Embedding(Base):
     id = Column(Integer, primary_key=True)
     document_id = Column(Integer, ForeignKey('documents.id'))
     model = Column(String(100))
-    vector = Column(BLOB)
+    vector = Column(LargeBinary)
+    content = Column(Text)
